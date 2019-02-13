@@ -346,6 +346,11 @@ Parameters:
     Type: String
     Default: "true"
 
+  ExtraNodeSecurityGroup:
+    Description: Extra security group to add to worker nodes
+    Type: String
+    Default: ""
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -368,12 +373,20 @@ Metadata:
           - NodeVolumeSize
           - KeyName
           - BootstrapArguments
+          - ExtraNodeSecurityGroup
       -
         Label:
           default: "Worker Network Configuration"
         Parameters:
           - VpcId
           - Subnets
+
+Conditions:
+  HasExtraSecurityGroup:
+    Fn::Not:
+      - Fn::Equals:
+        - {Ref: 'ExtraNodeSecurityGroup'}
+        - ''
 
 Resources:
 
@@ -509,7 +522,10 @@ Resources:
       InstanceType: !Ref NodeInstanceType
       KeyName: !Ref KeyName
       SecurityGroups:
-      - !Ref NodeSecurityGroup
+        Fn::If:
+        - HasExtraSecurityGroup
+        - [ !Ref NodeSecurityGroup, !Ref ExtraNodeSecurityGroup ]
+        - [ !Ref NodeSecurityGroup ]
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:

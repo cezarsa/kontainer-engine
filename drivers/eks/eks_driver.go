@@ -29,7 +29,7 @@ import (
 	"github.com/rancher/kontainer-engine/types"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -104,6 +104,7 @@ type state struct {
 	ServiceRole                 string
 	AMI                         string
 	AssociateWorkerNodePublicIP *bool
+	NodeSecurityGroup           string
 
 	ClusterInfo types.ClusterInfo
 }
@@ -226,6 +227,11 @@ func (d *Driver) GetDriverCreateOptions(ctx context.Context) (*types.DriverFlags
 		Default: &types.Default{DefaultString: "1.10"},
 	}
 
+	driverFlag.Options["node-security-group"] = &types.Flag{
+		Type:  types.StringType,
+		Usage: "An extra security group to be added to worker nodes",
+	}
+
 	return &driverFlag, nil
 }
 
@@ -263,6 +269,7 @@ func getStateFromOptions(driverOptions *types.DriverOptions) (state, error) {
 	state.SecurityGroups = options.GetValueFromDriverOptions(driverOptions, types.StringSliceType, "security-groups", "securityGroups").(*types.StringSlice).Value
 	state.AMI = options.GetValueFromDriverOptions(driverOptions, types.StringType, "ami").(string)
 	state.AssociateWorkerNodePublicIP, _ = options.GetValueFromDriverOptions(driverOptions, types.BoolPointerType, "associate-worker-node-public-ip", "associateWorkerNodePublicIp").(*bool)
+	state.NodeSecurityGroup = options.GetValueFromDriverOptions(driverOptions, types.StringType, "node-security-group", "nodeSecurityGroup").(string)
 
 	// UserData
 	state.UserData = options.GetValueFromDriverOptions(driverOptions, types.StringType, "user-data", "userData").(string)
@@ -612,6 +619,7 @@ func (d *Driver) Create(ctx context.Context, options *types.DriverOptions, _ *ty
 			{ParameterKey: aws.String("Subnets"),
 				ParameterValue: aws.String(strings.Join(toStringLiteralSlice(subnetIds), ","))},
 			{ParameterKey: aws.String("PublicIp"), ParameterValue: aws.String(strconv.FormatBool(publicIP))},
+			{ParameterKey: aws.String("ExtraNodeSecurityGroup"), ParameterValue: aws.String(state.NodeSecurityGroup)},
 		})
 	if err != nil {
 		return info, fmt.Errorf("error creating stack: %v", err)
